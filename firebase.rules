@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isPlatformAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'platform_admin';
+    }
+    
+    function isUserInRole(role) {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+    
+    // Platform Messages
+    match /platformMessages/{messageId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.targetRoles.hasAny([get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role]));
+      allow write: if isPlatformAdmin();
+    }
+    
+    // Categories
+    match /governanceCategories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if isPlatformAdmin() || isUserInRole('tenant_admin');
+    }
+  }
+}
